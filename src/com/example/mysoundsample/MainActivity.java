@@ -3,6 +3,7 @@ package com.example.mysoundsample;
 import android.os.Bundle;
 import android.R.integer;
 import android.app.Activity;
+import android.util.Log;
 import android.view.Menu;
 import android.view.View;
 import android.media.AudioFormat;
@@ -25,13 +26,27 @@ import android.widget.SeekBar;
 import android.widget.SeekBar.OnSeekBarChangeListener;
 
 public class MainActivity extends Activity {
-	Thread t;
-	int sr = 44100;
-	boolean isRunning = true;
-	SeekBar fSlider;
-	double sliderval;
-	double m_fr = 440.f;
+	//Thread t;
 	
+	//double m_fr = 440.f;
+	private SoundThreadManager m_manager;
+	
+	@Override
+	protected void onResume() {
+		// TODO Auto-generated method stub
+		super.onResume();
+	}
+
+	@Override
+	protected void onPause() {
+		super.onPause();
+		if(m_manager != null){
+			m_manager.allStop();
+		}
+	}
+
+
+
 	public void buttonMethod(View button){
 		int[] frs2 = new int[]{
 			0,2,3,5,7,8,10
@@ -91,94 +106,91 @@ public class MainActivity extends Activity {
 				2093 // ド
 		};
 		String text = ((Button)button).getText().toString();
+		Log.d("myapp", "allStop");
+		m_manager.allStop();
 		int i = Integer.parseInt(text);
-		int level = (2 + i) / frs2.length;
-		int j = frs2[(2 + i) % frs2.length];
-		m_fr = frs[12 * (2 + level) + j];
+		{
+			Log.d("myapp", "pushSound0");
+			int level = (2 + i) / frs2.length;
+			int j = frs2[(2 + i) % frs2.length];
+			double[] frs3 = new double[]{
+					frs[12 * (2 + level) + j],
+					frs[12 * (2 + level) + j + 4],
+					frs[12 * (2 + level) + j + 7]};
+			//frs3 = new double[]{frs[12 * (2 + level) + j]};
+			m_manager.pushSound(frs3, 0, 500);
+		}
+		/*
+		{
+			Log.d("myapp", "pushSound1");
+			i += 4;
+			int level = (2 + i) / frs2.length;
+			int j = frs2[(2 + i) % frs2.length];
+			double fr = frs[12 * (2 + level) + j];
+			m_manager.pushSound(fr, 1, 1000);
+		}
+		{
+			Log.d("myapp", "pushSound0");
+			i += 3;
+			int level = (2 + i) / frs2.length;
+			int j = frs2[(2 + i) % frs2.length];
+			double fr = frs[12 * (2 + level) + j];
+			m_manager.pushSound(fr, 2, 1000);
+		}
+		Log.d("myapp", "sleeping");
+		*/
+		/*
+		try{
+			//Thread.sleep(1000);
+		}
+		catch(InterruptedException ex){
+		}
+		*/
+		//Log.d("myapp", "allPlay");
+		//m_manager.allPlay();
 	}
-
+	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
-		// point the slider to thwe GUI widget
-		fSlider = (SeekBar) findViewById(R.id.seekBar1);
 
-		// create a listener for the slider bar;
-		OnSeekBarChangeListener listener = new OnSeekBarChangeListener() {
-			public void onStopTrackingTouch(SeekBar seekBar) {
-			}
-
-			public void onStartTrackingTouch(SeekBar seekBar) {
-			}
-
-			public void onProgressChanged(SeekBar seekBar, int progress,
-					boolean fromUser) {
-				if (fromUser){
-					double sliderval = progress / (double) seekBar.getMax();
-					m_fr = 440 + 440 * sliderval;
-				}
-			}
-		};
-
-		// set the listener on the slider
-		fSlider.setOnSeekBarChangeListener(listener);
-
-		// start a new thread to synthesise audio
-		t = new Thread() {
-			public void run() {
-				// set process priority
-				setPriority(Thread.MAX_PRIORITY);
-				// set the buffer size
-				int buffsize = AudioTrack.getMinBufferSize(sr,
-						AudioFormat.CHANNEL_OUT_MONO,
-						AudioFormat.ENCODING_PCM_16BIT);
-				// create an audiotrack object
-				AudioTrack audioTrack = new AudioTrack(
-						AudioManager.STREAM_MUSIC, sr,
-						AudioFormat.CHANNEL_OUT_MONO,
-						AudioFormat.ENCODING_PCM_16BIT, buffsize,
-						AudioTrack.MODE_STREAM);
-
-				short samples[] = new short[buffsize];
-				int amp = 10000;
-				double twopi = 8. * Math.atan(1.);
-				
-				double ph = 0.0;
-
-				// start audio
-				audioTrack.play();
-
-				// synthesis loop
-				while (isRunning) {
-					
-					for (int i = 0; i < buffsize; i++) {
-						samples[i] = (short) (amp * Math.sin(ph));
-						ph += twopi * m_fr / sr;
-					}
-					audioTrack.write(samples, 0, buffsize);
-				}
-				audioTrack.stop();
-				audioTrack.release();
-			}
-		};
-		t.start();
-	}
-
-	@Override
-	public boolean onCreateOptionsMenu(Menu menu) {
-		getMenuInflater().inflate(R.menu.main, menu);
-		return true;
+		// シンセ用スレッド
+		m_manager = new SoundThreadManager();
 	}
 
 	public void onDestroy() {
 		super.onDestroy();
-		isRunning = false;
-		try {
-			t.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		t = null;
+		// スレッド停止を命令する
+		m_manager.allStop();
+		m_manager = null;
 	}
 }
+
+
+
+/*
+	SeekBar fSlider;
+	double sliderval;
+fSlider = (SeekBar) findViewById(R.id.seekBar1);
+
+		// set the listener on the slider
+		fSlider.setOnSeekBarChangeListener(listener);
+// create a listener for the slider bar;
+OnSeekBarChangeListener listener = new OnSeekBarChangeListener() {
+	public void onStopTrackingTouch(SeekBar seekBar) {
+	}
+
+	public void onStartTrackingTouch(SeekBar seekBar) {
+	}
+
+	public void onProgressChanged(SeekBar seekBar, int progress,
+			boolean fromUser) {
+		if (fromUser){
+			double sliderval = progress / (double) seekBar.getMax();
+			m_fr = 440 + 440 * sliderval;
+		}
+	}
+};
+*/
+
